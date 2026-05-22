@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ruleta de Nombres</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #1a1a2e;
+    --sidebar-bg: #16213e;
+    --panel-bg: #0f3460;
+    --accent: #e94560;
+    --text: #eaeaea;
+    --muted: #8892a4;
+    --border: #2a3a5c;
+    --entry-bg: #1e2d4a;
+    --tab-active: #e94560;
+    --btn-blue: #2563eb;
+    --btn-blue-h: #1d4ed8;
+    --radius: 8px;
+    --slice-colors: #e94560, #2563eb, #16a34a, #d97706;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ── LEFT PANEL ── */
+  #wheel-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    min-width: 0;
+  }
+
+  #wheel-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  canvas#wheel {
+    display: block;
+    border-radius: 50%;
+  }
+
+  /* Arrow pointer on the right */
+  #pointer {
+    position: absolute;
+    right: -18px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-top: 20px solid transparent;
+    border-bottom: 20px solid transparent;
+    border-right: 36px solid #e94560;
+    filter: drop-shadow(0 0 6px rgba(233,69,96,0.7));
+    z-index: 10;
+  }
+
+  #spin-btn {
+    margin-top: 24px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 12px 48px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 30px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: background .2s, transform .1s;
+  }
+  #spin-btn:hover { background: #c73652; }
+  #spin-btn:active { transform: scale(.97); }
+  #spin-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* Admin icon — subtle but clickable, top-right corner */
+  #admin-icon {
+    position: fixed;
+    top: 8px;
+    right: 12px;
+    font-size: 15px;
+    color: #3a4a6a;
+    cursor: pointer;
+    user-select: none;
+    z-index: 999;
+    line-height: 1;
+    opacity: .55;
+    transition: opacity .2s, color .2s;
+  }
+  #admin-icon:hover { color: #8892a4; opacity: 1; }
+
+  /* ── SIDEBAR ── */
+  #sidebar {
+    width: 340px;
+    min-width: 280px;
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--border);
+  }
+
+  #tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1;
+    padding: 14px 0;
+    text-align: center;
+    cursor: pointer;
+    font-size: .9rem;
+    color: var(--muted);
+    border-bottom: 2px solid transparent;
+    transition: color .2s, border-color .2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .tab.active { color: var(--text); border-bottom-color: var(--tab-active); }
+  .badge {
+    background: var(--panel-bg);
+    border-radius: 10px;
+    font-size: .72rem;
+    padding: 1px 7px;
+    color: var(--muted);
+  }
+  .tab.active .badge { background: var(--accent); color: #fff; }
+
+  #tab-entries, #tab-results { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+  /* Action buttons */
+  #entry-actions {
+    display: flex;
+    gap: 6px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .action-btn {
+    flex: 1;
+    background: var(--entry-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 0;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: .8rem;
+    transition: background .15s;
+  }
+  .action-btn:hover { background: var(--panel-bg); }
+
+  /* Entry list */
+  #entries-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 8px;
+  }
+  #entries-list::-webkit-scrollbar { width: 5px; }
+  #entries-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .entry-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 4px;
+    border-radius: var(--radius);
+    transition: background .15s;
+  }
+  .entry-row:hover { background: var(--entry-bg); }
+  .entry-arrows { display: flex; flex-direction: column; gap: 0; }
+  .arr-btn {
+    background: none; border: none; color: var(--muted);
+    cursor: pointer; font-size: .7rem; line-height: 1.2; padding: 0 2px;
+  }
+  .arr-btn:hover { color: var(--text); }
+  .color-swatch {
+    width: 22px; height: 22px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 0;
+  }
+  .entry-name {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: .88rem;
+    outline: none;
+    min-width: 0;
+  }
+  .entry-name:focus { border-bottom: 1px solid var(--accent); }
+  .del-btn {
+    background: none; border: none;
+    color: var(--muted); cursor: pointer;
+    font-size: .9rem; padding: 2px 4px;
+    border-radius: 4px;
+  }
+  .del-btn:hover { color: var(--accent); background: rgba(233,69,96,.1); }
+
+  #add-entry-wrap {
+    padding: 10px 12px;
+    border-top: 1px solid var(--border);
+  }
+  #add-entry-btn {
+    width: 100%;
+    background: var(--btn-blue);
+    color: #fff;
+    border: none;
+    padding: 9px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: .9rem;
+    font-weight: 500;
+    transition: background .15s;
+  }
+  #add-entry-btn:hover { background: var(--btn-blue-h); }
+
+  /* Results tab */
+  #results-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  #results-list::-webkit-scrollbar { width: 5px; }
+  #results-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .result-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--entry-bg);
+    border-radius: var(--radius);
+    padding: 8px 10px;
+  }
+  .result-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .result-name { flex: 1; font-size: .88rem; }
+  .result-time { font-size: .72rem; color: var(--muted); }
+  .rigged-label {
+    font-size: .65rem;
+    background: rgba(233,69,96,.2);
+    color: var(--accent);
+    border-radius: 3px;
+    padding: 1px 5px;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  #no-results { color: var(--muted); font-size: .85rem; text-align: center; padding-top: 20px; }
+
+  /* ── MODAL overlay ── */
+  #modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.6);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  #modal-overlay.open { display: flex; }
+
+  #admin-panel {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    width: 380px;
+    max-width: 95vw;
+  }
+  #admin-panel h2 { font-size: 1rem; margin-bottom: 16px; color: var(--text); }
+
+  .mode-radio { display: flex; gap: 0; margin-bottom: 16px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .mode-radio label {
+    flex: 1; text-align: center; padding: 8px 4px;
+    font-size: .78rem; cursor: pointer;
+    color: var(--muted); background: var(--entry-bg);
+    border-right: 1px solid var(--border);
+    transition: background .15s, color .15s;
+  }
+  .mode-radio label:last-child { border-right: none; }
+  .mode-radio input { display: none; }
+  .mode-radio input:checked + span { color: var(--text); }
+  .mode-radio label:has(input:checked) { background: var(--panel-bg); color: var(--text); }
+
+  #force-select-wrap, #weight-list-wrap { margin-bottom: 12px; }
+  #force-select {
+    width: 100%; background: var(--entry-bg); border: 1px solid var(--border);
+    color: var(--text); padding: 7px 10px; border-radius: var(--radius); font-size: .88rem;
+  }
+  #weight-list { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; }
+  .weight-row { display: flex; align-items: center; gap: 8px; font-size: .82rem; }
+  .weight-row span { width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .weight-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .weight-val { width: 28px; text-align: right; color: var(--muted); font-size: .78rem; }
+
+  .admin-close-btn {
+    width: 100%; margin-top: 12px;
+    background: var(--entry-bg); border: 1px solid var(--border);
+    color: var(--text); padding: 8px; border-radius: var(--radius);
+    cursor: pointer; font-size: .88rem;
+  }
+  .admin-close-btn:hover { background: var(--panel-bg); }
+
+  /* ── WINNER OVERLAY ── */
+  #winner-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    z-index: 900;
+    pointer-events: none;
+  }
+  #winner-overlay.show { display: flex; }
+  #winner-box {
+    background: var(--sidebar-bg);
+    border: 2px solid var(--accent);
+    border-radius: 16px;
+    padding: 28px 40px;
+    text-align: center;
+    pointer-events: all;
+    animation: pop .35s cubic-bezier(.34,1.56,.64,1);
+  }
+  @keyframes pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  #winner-box h3 { font-size: .85rem; color: var(--muted); margin-bottom: 6px; letter-spacing: 1px; text-transform: uppercase; }
+  #winner-name { font-size: 1.8rem; font-weight: 700; }
+  #winner-close {
+    margin-top: 16px;
+    background: var(--accent); color: #fff; border: none;
+    padding: 8px 28px; border-radius: 20px; cursor: pointer; font-size: .9rem;
+  }
+
+  /* confetti canvas */
+  #confetti-canvas {
+    position: fixed; inset: 0; pointer-events: none; z-index: 850;
+    width: 100%; height: 100%;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    body { flex-direction: column; height: auto; overflow: auto; }
+    #wheel-area { padding: 20px 0 10px; }
+    #sidebar { width: 100%; border-left: none; border-top: 1px solid var(--border); height: 50vh; min-height: 320px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Hidden admin icon, nearly invisible in top-right -->
+<span id="admin-icon" title="">⚙</span>
+
+<!-- Confetti -->
+<canvas id="confetti-canvas"></canvas>
+
+<!-- Winner overlay -->
+<div id="winner-overlay">
+  <div id="winner-box">
+    <h3>🎉 Ganador</h3>
+    <div id="winner-name"></div>
+    <button id="winner-close">Cerrar</button>
+  </div>
+</div>
+
+<!-- Admin panel modal -->
+<div id="modal-overlay">
+  <div id="admin-panel">
+    <h2>Panel de administrador</h2>
+    <div class="mode-radio" id="mode-radio">
+      <label><input type="radio" name="mode" value="random" checked><span>Aleatorio</span></label>
+      <label><input type="radio" name="mode" value="force"><span>Forzar resultado</span></label>
+      <label><input type="radio" name="mode" value="weighted"><span>Pesos</span></label>
+    </div>
+    <div id="force-select-wrap" style="display:none">
+      <select id="force-select"></select>
+    </div>
+    <div id="weight-list-wrap" style="display:none">
+      <div id="weight-list"></div>
+    </div>
+    <button class="admin-close-btn" id="admin-close-btn">Cerrar</button>
+  </div>
+</div>
+
+<!-- Main layout -->
+<div id="wheel-area">
+  <div id="wheel-wrap">
+    <canvas id="wheel" width="520" height="520"></canvas>
+    <div id="pointer"></div>
+  </div>
+  <button id="spin-btn">GIRAR</button>
+</div>
+
+<div id="sidebar">
+  <div id="tabs">
+    <div class="tab active" data-tab="entries">Participantes <span class="badge" id="entry-count">0</span></div>
+    <div class="tab" data-tab="results">Resultados <span class="badge" id="result-count">0</span></div>
+  </div>
+
+  <!-- Entries tab -->
+  <div id="tab-entries">
+    <div id="entry-actions">
+      <button class="action-btn" id="shuffle-btn">Mezclar</button>
+      <button class="action-btn" id="sort-btn">Ordenar</button>
+      <button class="action-btn" id="clear-btn">Limpiar</button>
+    </div>
+    <div id="entries-list"></div>
+    <div id="add-entry-wrap">
+      <button id="add-entry-btn">+ Agregar participante</button>
+    </div>
+  </div>
+
+  <!-- Results tab -->
+  <div id="tab-results" style="display:none">
+    <div id="results-list"><div id="no-results">Sin resultados aún.</div></div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────
+const SLICE_COLORS = ['#e94560','#2563eb','#16a34a','#d97706','#7c3aed','#0891b2'];
+const OUTER_COLORS = ['#e94560','#2563eb','#16a34a','#d97706'];
+
+let entries = [
+  {id:1, name:'Ana',      color:'#e94560'},
+  {id:2, name:'Carlos',   color:'#2563eb'},
+  {id:3, name:'Sofía',    color:'#16a34a'},
+  {id:4, name:'Miguel',   color:'#d97706'},
+  {id:5, name:'Valeria',  color:'#7c3aed'},
+  {id:6, name:'Jorge',    color:'#0891b2'},
+];
+let nextId = 7;
+let results = [];
+let mode = 'random'; // random | force | weighted
+let forceIndex = 0;
+let weights = {};
+let spinning = false;
+let currentAngle = 0;  // radians, cumulative rotation
+
+// ─────────────────────────────────────────────
+// CANVAS WHEEL
+// ─────────────────────────────────────────────
+const canvas = document.getElementById('wheel');
+const ctx = canvas.getContext('2d');
+const SIZE = 520;
+const CX = SIZE/2, CY = SIZE/2;
+const OUTER_R = SIZE/2 - 4;
+const INNER_R = OUTER_R;   // no outer ring, slices go to the edge
+const HUB_R = 28;
+
+function drawWheel(angle) {
+  ctx.clearRect(0,0,SIZE,SIZE);
+  const n = entries.length;
+  if (n === 0) {
+    ctx.fillStyle = '#2a3a5c';
+    ctx.beginPath();
+    ctx.arc(CX,CY,OUTER_R,0,Math.PI*2);
+    ctx.fill();
+    drawHub();
+    return;
+  }
+  const slice = (Math.PI*2)/n;
+
+  // Draw slices
+  for (let i=0;i<n;i++) {
+    const start = angle + i*slice;
+    const end = start + slice;
+    ctx.beginPath();
+    ctx.moveTo(CX,CY);
+    ctx.arc(CX,CY,INNER_R,start,end);
+    ctx.closePath();
+    ctx.fillStyle = entries[i].color || SLICE_COLORS[i%SLICE_COLORS.length];
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.18)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Label
+    ctx.save();
+    ctx.translate(CX,CY);
+    ctx.rotate(start + slice/2);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#fff';
+    ctx.font = `italic bold ${Math.min(16, Math.max(10, 200/n))}px 'Segoe UI',sans-serif`;
+    ctx.shadowColor = 'rgba(0,0,0,.5)';
+    ctx.shadowBlur = 3;
+    const label = entries[i].name.length > 18 ? entries[i].name.slice(0,17)+'…' : entries[i].name;
+    ctx.fillText(label, INNER_R - 12, 5);
+    ctx.restore();
+  }
+
+  // Thin border circle around wheel
+  ctx.beginPath();
+  ctx.arc(CX,CY,INNER_R,0,Math.PI*2);
+  ctx.strokeStyle = 'rgba(255,255,255,.12)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  drawHub();
+}
+
+function drawHub() {
+  // Shadow
+  ctx.shadowColor = 'rgba(0,0,0,.4)';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.arc(CX,CY,HUB_R,0,Math.PI*2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#ccc';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Click hint
+  ctx.fillStyle = '#444';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('GIRAR', CX, CY+3);
+}
+
+// ─────────────────────────────────────────────
+// ENTRIES UI
+// ─────────────────────────────────────────────
+function renderEntries() {
+  const list = document.getElementById('entries-list');
+  list.innerHTML = '';
+  entries.forEach((e,i) => {
+    const row = document.createElement('div');
+    row.className = 'entry-row';
+    row.dataset.id = e.id;
+    row.innerHTML = `
+      <div class="entry-arrows">
+        <button class="arr-btn" data-dir="up" data-i="${i}">▲</button>
+        <button class="arr-btn" data-dir="down" data-i="${i}">▼</button>
+      </div>
+      <input type="color" class="color-swatch" value="${e.color}" data-i="${i}">
+      <input class="entry-name" type="text" value="${e.name}" data-i="${i}" placeholder="Nombre…">
+      <button class="del-btn" data-i="${i}">✕</button>
+    `;
+    list.appendChild(row);
+  });
+  document.getElementById('entry-count').textContent = entries.length;
+  refreshWeightList();
+  refreshForceSelect();
+  drawWheel(currentAngle);
+}
+
+document.getElementById('entries-list').addEventListener('click', e => {
+  const i = parseInt(e.target.dataset.i);
+  if (e.target.classList.contains('arr-btn')) {
+    const dir = e.target.dataset.dir;
+    if (dir==='up' && i>0) { [entries[i],entries[i-1]]=[entries[i-1],entries[i]]; renderEntries(); }
+    if (dir==='down' && i<entries.length-1) { [entries[i],entries[i+1]]=[entries[i+1],entries[i]]; renderEntries(); }
+  }
+  if (e.target.classList.contains('del-btn')) {
+    entries.splice(i,1);
+    renderEntries();
+  }
+});
+
+document.getElementById('entries-list').addEventListener('input', e => {
+  const i = parseInt(e.target.dataset.i);
+  if (e.target.classList.contains('entry-name')) {
+    entries[i].name = e.target.value;
+    drawWheel(currentAngle);
+    refreshForceSelect();
+    refreshWeightList();
+  }
+  if (e.target.classList.contains('color-swatch')) {
+    entries[i].color = e.target.value;
+    drawWheel(currentAngle);
+  }
+});
+
+document.getElementById('add-entry-btn').addEventListener('click', () => {
+  const color = SLICE_COLORS[entries.length % SLICE_COLORS.length];
+  entries.push({id: nextId++, name: `Participante ${nextId-1}`, color});
+  renderEntries();
+  document.getElementById('entries-list').lastElementChild?.querySelector('.entry-name')?.focus();
+});
+
+document.getElementById('shuffle-btn').addEventListener('click', () => {
+  for (let i=entries.length-1;i>0;i--) {
+    const j=Math.floor(Math.random()*(i+1));
+    [entries[i],entries[j]]=[entries[j],entries[i]];
+  }
+  renderEntries();
+});
+document.getElementById('sort-btn').addEventListener('click', () => {
+  entries.sort((a,b)=>a.name.localeCompare(b.name));
+  renderEntries();
+});
+document.getElementById('clear-btn').addEventListener('click', () => {
+  if (confirm('¿Borrar todos los participantes?')) { entries=[]; renderEntries(); }
+});
+
+// ─────────────────────────────────────────────
+// TABS
+// ─────────────────────────────────────────────
+document.getElementById('tabs').addEventListener('click', e => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  tab.classList.add('active');
+  const which = tab.dataset.tab;
+  document.getElementById('tab-entries').style.display = which==='entries' ? 'flex' : 'none';
+  document.getElementById('tab-results').style.display = which==='results' ? 'flex' : 'none';
+});
+
+// ─────────────────────────────────────────────
+// AUDIO
+// ─────────────────────────────────────────────
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  return audioCtx;
+}
+function tick() {
+  const ac = getAudio();
+  const o = ac.createOscillator();
+  const g = ac.createGain();
+  o.connect(g); g.connect(ac.destination);
+  o.frequency.value = 800 + Math.random()*200;
+  g.gain.setValueAtTime(.18, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001, ac.currentTime+.05);
+  o.start(); o.stop(ac.currentTime+.05);
+}
+function fanfare(color) {
+  const ac = getAudio();
+  const freqs = [523,659,784,1047];
+  freqs.forEach((f,i)=>{
+    const o=ac.createOscillator(), g=ac.createGain();
+    o.connect(g); g.connect(ac.destination);
+    o.frequency.value=f; o.type='triangle';
+    const t=ac.currentTime+i*.08;
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(.25,t+.04);
+    g.gain.exponentialRampToValueAtTime(.001,t+.35);
+    o.start(t); o.stop(t+.4);
+  });
+}
+
+// ─────────────────────────────────────────────
+// SPIN
+// ─────────────────────────────────────────────
+function pickWinner() {
+  const n = entries.length;
+  if (mode==='force') return forceIndex % n;
+  if (mode==='weighted') {
+    const total = entries.reduce((s,e,i)=>s+(weights[e.id]||1),0);
+    let r = Math.random()*total, cum=0;
+    for (let i=0;i<n;i++) {
+      cum += (weights[entries[i].id]||1);
+      if (r <= cum) return i;
+    }
+    return n-1;
+  }
+  return Math.floor(Math.random()*n);
+}
+
+function spin() {
+  if (spinning || entries.length < 2) return;
+  spinning = true;
+  document.getElementById('spin-btn').disabled = true;
+
+  const n = entries.length;
+  const TWO_PI = Math.PI * 2;
+  const slice = TWO_PI / n;
+  const targetIdx = pickWinner();
+  const isRigged = mode !== 'random';
+
+  // The wheel draws slice i occupying angles [currentAngle + i*slice, currentAngle + (i+1)*slice].
+  // The pointer is fixed at canvas angle 0 (right / 3 o'clock).
+  // At any moment the pointer reads wheel-local angle = (-currentAngle) mod 2pi.
+  // We want that local angle to land inside the CENTER of slice targetIdx:
+  //   local = targetIdx * slice + slice/2
+  // So we need:  (-finalAngle) mod 2pi  ==  targetIdx * slice + slice/2
+  //   finalAngle mod 2pi  == -(targetIdx * slice + slice/2) mod 2pi
+
+  const sliceCenter = targetIdx * slice + slice / 2;
+  const idealMod = ((-sliceCenter) % TWO_PI + TWO_PI) % TWO_PI;
+
+  // Current angle mod 2pi
+  const curMod = ((currentAngle % TWO_PI) + TWO_PI) % TWO_PI;
+
+  // Shortest positive rotation to go from curMod to idealMod
+  let delta = idealMod - curMod;
+  if (delta <= 0) delta += TWO_PI;   // ensure strictly positive
+
+  // Add 6-10 full extra rotations so the spin looks real
+  const extraSpins = (6 + Math.floor(Math.random() * 5)) * TWO_PI;
+  const totalDelta = extraSpins + delta;
+
+  const duration = 4000 + Math.random() * 1500;
+  const startAngle = currentAngle;
+  const startTime = performance.now();
+  let lastTickSlice = -1;
+
+  function frame(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);  // ease-out cubic
+    currentAngle = startAngle + totalDelta * eased;
+
+    drawWheel(currentAngle);
+
+    // Tick sound at each slice boundary crossing
+    const pointerLocal = ((-currentAngle) % TWO_PI + TWO_PI) % TWO_PI;
+    const curTickSlice = Math.floor(pointerLocal / slice) % n;
+    if (curTickSlice !== lastTickSlice) { tick(); lastTickSlice = curTickSlice; }
+
+    if (t < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      currentAngle = startAngle + totalDelta;
+      drawWheel(currentAngle);
+      spinning = false;
+      document.getElementById('spin-btn').disabled = false;
+
+      // Derive winner from final resting angle (single source of truth)
+      const finalLocal = ((-currentAngle) % TWO_PI + TWO_PI) % TWO_PI;
+      const actualWinner = Math.floor(finalLocal / slice) % n;
+      showWinner(actualWinner, isRigged);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function showWinner(i, rigged) {
+  const e = entries[i];
+  fanfare(e.color);
+  launchConfetti(e.color);
+
+  // Add to results
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'});
+  results.unshift({name: e.name, color: e.color, time: timeStr, rigged});
+  document.getElementById('result-count').textContent = results.length;
+  renderResults();
+
+  // Show winner box
+  document.getElementById('winner-name').textContent = e.name;
+  document.getElementById('winner-name').style.color = e.color;
+  document.getElementById('winner-overlay').classList.add('show');
+}
+
+document.getElementById('winner-close').addEventListener('click', ()=>{
+  document.getElementById('winner-overlay').classList.remove('show');
+});
+
+function renderResults() {
+  const list = document.getElementById('results-list');
+  const noRes = document.getElementById('no-results');
+  if (results.length === 0) { noRes && (noRes.style.display=''); return; }
+  noRes && (noRes.style.display='none');
+  list.innerHTML = '';
+  results.forEach(r => {
+    const div = document.createElement('div');
+    div.className = 'result-item';
+    div.innerHTML = `
+      <div class="result-dot" style="background:${r.color}"></div>
+      <div class="result-name">${r.name}</div>
+      ${r.rigged ? '<span class="rigged-label">ARREGLADO</span>' : ''}
+      <div class="result-time">${r.time}</div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+// ─────────────────────────────────────────────
+// CONFETTI
+// ─────────────────────────────────────────────
+const confCanvas = document.getElementById('confetti-canvas');
+const confCtx = confCanvas.getContext('2d');
+let particles = [];
+
+function launchConfetti(baseColor) {
+  confCanvas.width = window.innerWidth;
+  confCanvas.height = window.innerHeight;
+  particles = Array.from({length:120}, ()=>({
+    x: Math.random()*confCanvas.width,
+    y: -10 - Math.random()*100,
+    w: 6+Math.random()*8,
+    h: 3+Math.random()*5,
+    color: Math.random()<.5 ? baseColor : OUTER_COLORS[Math.floor(Math.random()*OUTER_COLORS.length)],
+    vx: (Math.random()-.5)*4,
+    vy: 2+Math.random()*4,
+    rot: Math.random()*Math.PI*2,
+    rspeed: (Math.random()-.5)*.15,
+    alpha: 1
+  }));
+  animConfetti();
+}
+function animConfetti() {
+  confCtx.clearRect(0,0,confCanvas.width,confCanvas.height);
+  particles = particles.filter(p=>p.alpha>0.02);
+  particles.forEach(p=>{
+    p.x+=p.vx; p.y+=p.vy; p.vy+=.06; p.rot+=p.rspeed;
+    if (p.y > confCanvas.height) p.alpha -= .05;
+    confCtx.save();
+    confCtx.globalAlpha=p.alpha;
+    confCtx.translate(p.x,p.y);
+    confCtx.rotate(p.rot);
+    confCtx.fillStyle=p.color;
+    confCtx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+    confCtx.restore();
+  });
+  if (particles.length>0) requestAnimationFrame(animConfetti);
+}
+
+// ─────────────────────────────────────────────
+// ADMIN PANEL
+// ─────────────────────────────────────────────
+function openAdmin() {
+  refreshForceSelect();
+  refreshWeightList();
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeAdmin() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+document.getElementById('admin-icon').addEventListener('click', openAdmin);
+document.getElementById('admin-close-btn').addEventListener('click', closeAdmin);
+document.getElementById('modal-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-overlay')) closeAdmin();
+});
+
+document.querySelectorAll('input[name="mode"]').forEach(r => {
+  r.addEventListener('change', () => {
+    mode = r.value;
+    document.getElementById('force-select-wrap').style.display = mode==='force' ? '' : 'none';
+    document.getElementById('weight-list-wrap').style.display = mode==='weighted' ? '' : 'none';
+  });
+});
+
+// Keyboard shortcut
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey && e.shiftKey && e.key==='A') { e.preventDefault(); openAdmin(); }
+});
+
+function refreshForceSelect() {
+  const sel = document.getElementById('force-select');
+  const prev = forceIndex;
+  sel.innerHTML = entries.map((e,i)=>`<option value="${i}">${e.name}</option>`).join('');
+  sel.value = Math.min(prev, entries.length-1);
+  forceIndex = parseInt(sel.value)||0;
+  sel.onchange = ()=>{ forceIndex=parseInt(sel.value); };
+}
+function refreshWeightList() {
+  const list = document.getElementById('weight-list');
+  list.innerHTML = '';
+  entries.forEach(e=>{
+    if (!(e.id in weights)) weights[e.id]=5;
+    const row = document.createElement('div');
+    row.className='weight-row';
+    row.innerHTML=`
+      <span title="${e.name}">${e.name}</span>
+      <input type="range" min="1" max="20" value="${weights[e.id]}" data-eid="${e.id}">
+      <span class="weight-val" id="wv-${e.id}">${weights[e.id]}</span>
+    `;
+    list.appendChild(row);
+    row.querySelector('input[type=range]').addEventListener('input', ev=>{
+      weights[e.id]=parseInt(ev.target.value);
+      document.getElementById('wv-'+e.id).textContent=weights[e.id];
+    });
+  });
+}
+
+// ─────────────────────────────────────────────
+// SPIN TRIGGERS
+// ─────────────────────────────────────────────
+document.getElementById('spin-btn').addEventListener('click', spin);
+canvas.addEventListener('click', e => {
+  const rect=canvas.getBoundingClientRect();
+  const dx=e.clientX-rect.left-CX*(rect.width/SIZE);
+  const dy=e.clientY-rect.top-CY*(rect.height/SIZE);
+  if (Math.sqrt(dx*dx+dy*dy) < HUB_R*(rect.width/SIZE)) spin();
+});
+
+// ─────────────────────────────────────────────
+// RESPONSIVE CANVAS SIZE
+// ─────────────────────────────────────────────
+function resizeCanvas() {
+  const area = document.getElementById('wheel-area');
+  const maxSize = Math.min(area.clientWidth - 60, area.clientHeight - 100, 520);
+  canvas.style.width = maxSize+'px';
+  canvas.style.height = maxSize+'px';
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ─────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────
+renderEntries();
+resizeCanvas();
+drawWheel(0);
+</script>
+</body>
+</html>
